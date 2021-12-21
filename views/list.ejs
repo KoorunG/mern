@@ -10,13 +10,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/css/bootstrap.min.css"
     integrity="sha384-zCbKRCUGaJDkqS1kPbPd7TveP5iyJE0EjAuZQTgFLD2ylzuqKfdKlfG/eSrtxUkn" crossorigin="anonymous">
 
-  <!-- Option 1: jQuery and Bootstrap Bundle (includes Popper) -->
-  <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"
-    integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous">
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-fQybjgWLrvvRgtW6bFlB7jaZrFsaBXjsOMm/tB9LTS58ONXgqbR9W8oWht/amnpF" crossorigin="anonymous">
-  </script>
+  <link rel="stylesheet" href="/public/main.css">
 
   <title>Hello, world!</title>
 </head>
@@ -24,35 +18,54 @@
 <body>
 
   <!-- Nav -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="#">Todo App</a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
-      aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav">
-        <li class="nav-item active">
-          <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#">Write</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#">Temporal</a>
-        </li>
-      </ul>
-    </div>
-  </nav>
+  <%- include('nav.html') %>
 
-  <% 
-        for(let i = 0 ; i < posts.length ; i++){ %>
   <!-- Todo List -->
-  <h4>할일 : <%= posts[i].title %></h4>
-  <p>할일 마감 날짜 : <%= posts[i].date %> </p>
-  <% } %>
+  <div class="container">
+    <ul class="list-group">
+      <h4 class="text-center">서버에서 가져온 할일 리스트</h4>
+      <% for(let i = 0 ; i < posts.length ; i++){ %>
+      <li class="list-group-item">
+        <a href="http://localhost:8080/detail/<%= posts[i]._id %>" style="text-decoration: none; color : black">
+          <h4 class="ml-2 my-3">할일 : <%= posts[i].title %></h4>
+          <p class="ml-2 my-3">할일 마감 날짜 : <%= posts[i].date %> </p>
+        </a>
+        <button class="delete btn btn-danger" data-id="<%= posts[i]._id %>">삭제</button>
+      </li>
+      <% } %>
+    </ul>
+  </div>
 
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+  <!-- Ajax -->
+  <script>
+    $('.delete').click(function (e) { // 'class가 delete인 요소를 클릭하면'
+
+      const postNum = e.target.dataset.id; // 타겟의 data-id를 불러오는 코드;
+      const selected = $(this); // 지금 이벤트가 동작하는 곳
+
+      $.ajax({
+          method: 'DELETE',
+          url: '/delete',
+          data: {
+            _id: postNum
+          }
+        }).done((result) => {
+          console.log('성공했어요!'); // 브라우저의 콘솔창에 '성공했어요' 출력
+          selected.parent('li').fadeOut(); // selected의 parent 중에 'li'를 찾아서 fadeOut 처리
+        })
+        .fail((result) => {
+
+        });
+    });
+  </script>
+
+  <!-- Option 1: jQuery and Bootstrap Bundle (includes Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-fQybjgWLrvvRgtW6bFlB7jaZrFsaBXjsOMm/tB9LTS58ONXgqbR9W8oWht/amnpF" crossorigin="anonymous">
+  </script>
 </body>
 
 </html>

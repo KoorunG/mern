@@ -5,15 +5,19 @@ const MongoClient = require("mongodb").MongoClient;
 let db; // DB 선언 (페이지 전체에서 쓰는 전역변수로 선언)
 
 // BodyParser
-
 app.use(express.urlencoded({ extended: true }));
 
 // ejs
-
 app.set('view engine', 'ejs');
 
-// MongoDB
+// PUBLIC-middleware
+app.use('/public', express.static('public'));
 
+// method-override (form에서 get/post 이외의 요청도 가능)
+const methodOverride = require('method-override');
+app.use(methodOverride('_method'));
+
+// MongoDB
 MongoClient.connect(
   "mongodb+srv://test:Test1234@cluster0.3k3a6.mongodb.net/todoapp?retryWrites=true&w=majority",
   { useUnifiedTopology: true }, // Warning Message를 제거해줌 (선택사항...)
@@ -43,7 +47,7 @@ MongoClient.connect(
 // GET
 
 app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/index.html");
+  res.render("index.ejs");
 });
 
 app.get("/pet", (req, res) => {
@@ -55,7 +59,7 @@ app.get("/beauty", (req, res) => {
 });
 
 app.get("/write", (req, res) => {
-  res.sendFile(__dirname + "/write.html");
+  res.render("write.ejs");
 });
 
 // POST
@@ -71,13 +75,25 @@ app.get("/write", (req, res) => {
 // 이 때 post라는 이름을 가진 collection에 두개의 데이터를 저장하기!
 
 app.post("/add", (req, res) => {
-  console.log(req.body);
-  db.collection('post').insertOne({ _id: 2, ...req.body }, (err, res) => {
-    if (err) {
-      console.log(err);
-    }
+  db.collection('count').findOne({name : "postNum"}, (err, result) => {
+    // 1. MongoDB에서 데이터 하나를 단건 조회 할 때 : findOne (name이 "postNum" 인 데이터를 하나 조회)
+      const totalPost = res.totalPost;
+    // 2. 위에서 찾은 데이터를 totalPost 변수에 저장
+
+    db.collection('post').insertOne({ _id: totalPost + 1, ...req.body }, (err, result) => {
+      if (err) {
+        console.log(err);
+      } else {
+        db.collection('count').updateOne({name : 'postNum'}, {$inc : {totalPost : 1}}, (err, result) => {
+          // 3. 값이 들어갈 때 마다 count 컬렉션의 totalPost 값을 1 증가시켜주기
+          if(err){
+            console.log(err);
+          }
+        });
+      }
+    });
   });
-  res.send('전송 완료');
+  res.redirect('/list');
 });
 
 
@@ -96,7 +112,41 @@ app.get('/list', (req, res) => {
     // 결과를 posts로 저장 후 list.ejs 랜더링!
     res.render('list.ejs', {posts : result});
     });
+});
 
-    
+app.delete('/delete', (req, res) => {
+  
+  req.body._id = parseInt(req.body._id); // String으로 넘어온 _id를 다시 정수로 변환
+  console.log(req.body);  // 데이터 출력 확인
 
+  db.collection('post').deleteOne(req.body, (err, result) => {
+    if(err){
+      console.log(err);
+      res.status(400).send({message : '실패했습니다..'});
+    } else {
+      console.log('삭제 완료');                                 // 삭제완료 여부를 콘솔창에 찍기
+      res.status(200).send({message : '성공했습니다!'});        // 200 응답메세지를 보내고 메세지 전달
+    }
+  });
+});
+
+app.get('/detail/:id', (req, res) => {
+  req.params.id = parseInt(req.params.id);
+  db.collection('post').findOne({_id : req.params.id}, (err, result) => {
+    console.log(result);
+    res.render('detail.ejs', {data : result});
+  });
+});
+
+app.get('/edit/:id', (req, res) => {
+  db.collection('post').findOne({_id : parseInt(req.params.id)}, (err, result) => {
+    res.render('edit.ejs', {data : result});
+  });
+});
+
+app.put('/edit/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  db.collection('post').updateOne({_id : id}, {$set : {...req.body}}, (err, result) => {
+    res.redirect('/list');
+  });
 });
