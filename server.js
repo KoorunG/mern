@@ -17,6 +17,16 @@ app.use('/public', express.static('public'));
 const methodOverride = require('method-override');
 app.use(methodOverride('_method'));
 
+// Session
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const session = require('express-session');
+
+// Session-Middleware
+app.use(session({secret : '비밀코드', resave : true, saveUninitialized : false}));
+app.use(passport.initialize());
+app.use(passport.session());
+
 // MongoDB
 MongoClient.connect(
   "mongodb+srv://test:Test1234@cluster0.3k3a6.mongodb.net/todoapp?retryWrites=true&w=majority",
@@ -150,3 +160,68 @@ app.put('/edit/:id', (req, res) => {
     res.redirect('/list');
   });
 });
+
+app.get('/login', (req, res) => {
+  res.render('login.ejs');
+});
+
+app.post('/login', passport.authenticate('local', {
+  failureRedirect : '/fail',  // 로그인이 실패하면 '/fail'로 리다이렉트
+}) ,(req, res) => {
+  res.redirect('/');          // 로그인이 성공하면 root로 리다이렉트
+});
+
+const isLogin = (req, res, next) => {
+  if(req.user) {                    // req.user이 있으면
+    next();                         // 통과(next())
+  } else {                          // 없으면
+    res.send('로그인이 필요합니다');   // 메세지 전송
+  }
+}
+
+app.get('/mypage', isLogin ,(req, res) => { // 두번째 파라미터는 미들웨어가 온다!
+  console.log(req.user);
+  res.render('mypage.ejs', {user : req.user});  // ejs로 사용자에 관한 정보 보내기!
+});
+
+
+
+
+// #################### PASSPORT ###################### //
+passport.use(new LocalStrategy({
+  usernameField : 'id',
+  passwordField : 'pw',         // form의 name 속성을 기반으로 바인딩되는 부분!
+  session : true,               // session 정보 저장
+  passReqToCallback : false     // 아이디, 비밀번호 이외에 다른 정보 검증 시 true로 설정...
+}, (inputId, inputPw, done) => {          // 이 콜백함수에서 검증 로직을 수행한다
+                                // done(서버에러, 성공시 사용자 DB 데이터, 에러메세지) => 라이브러리 문법이므로 그렇구나하고 넘어가자
+  console.log(inputId, inputPw);
+  db.collection('login').findOne({id : inputId}, (error, result) => {
+    if(error){
+      return done(error);
+    }
+    if(!result){
+      return done(null, false, {message : '존재하지 않는 아이디입니다'});
+    }
+    if(inputPw == result.pw){
+      return done(null, result)
+    } else {
+      return done(null, false, {message : '비밀번호가 일치하지 않습니다'});
+    }
+  });
+}));  // 인증 방식을 선언
+
+
+// id를 이용하여 세션을 저장시키는 코드
+passport.serializeUser((user, done) => {  // 여기서 user에 위 코드의 두번째 파라미터인 result가 들어갈 것
+  done(null, user.id);                    // 세션 데이터를 만들고 세션의 id 정보를 쿠키로 보냄
+});
+
+// 이 세션 데이터를 가진 유저를 DB에서 조회
+passport.deserializeUser((id, done) => {
+  db.collection('login').findOne({id : id}, (error, result) => {  // 로그인한 유저의 아이디를 바탕으로 정보를 DB에서 조회
+    done(null, result);   // 마이페이지 접속시 result를 보내줌! (마이페이지의 요청에 user으로 정보를 보냄!)
+  });
+});
+
+
