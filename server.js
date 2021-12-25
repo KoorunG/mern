@@ -27,9 +27,14 @@ app.use(session({secret : '비밀코드', resave : true, saveUninitialized : fal
 app.use(passport.initialize());
 app.use(passport.session());
 
+
+// dotenv
+require('dotenv').config();
+
+
 // MongoDB
 MongoClient.connect(
-  "mongodb+srv://test:Test1234@cluster0.3k3a6.mongodb.net/todoapp?retryWrites=true&w=majority",
+  process.env.DB_URL,
   { useUnifiedTopology: true }, // Warning Message를 제거해줌 (선택사항...)
   (err, client) => {
     if (err) return console.log(err);
@@ -48,8 +53,8 @@ MongoClient.connect(
 
     // Server listening
 
-    app.listen(8080, () => {
-      console.log("Listening on port 8080");
+    app.listen(process.env.PORT, () => {
+      console.log(`Listening on port ${process.env.PORT}`);
     });
   }
 );
@@ -86,8 +91,9 @@ app.get("/write", (req, res) => {
 
 app.post("/add", (req, res) => {
   db.collection('count').findOne({name : "postNum"}, (err, result) => {
+
     // 1. MongoDB에서 데이터 하나를 단건 조회 할 때 : findOne (name이 "postNum" 인 데이터를 하나 조회)
-      const totalPost = res.totalPost;
+      const totalPost = result.totalPost;
     // 2. 위에서 찾은 데이터를 totalPost 변수에 저장
 
     db.collection('post').insertOne({ _id: totalPost + 1, ...req.body }, (err, result) => {
@@ -184,6 +190,29 @@ app.get('/mypage', isLogin ,(req, res) => { // 두번째 파라미터는 미들�
   res.render('mypage.ejs', {user : req.user});  // ejs로 사용자에 관한 정보 보내기!
 });
 
+
+app.get('/search', (req, res) => {
+
+  // 검색조건 설정
+  const searchCondition = [
+    {
+      $search : {
+        index : 'titleSearch',
+        text : {
+          query : req.query.value,
+          path : 'title'
+        }
+      }
+    },
+    { $sort : { _id : 1} },
+    { $limit : 10}  
+  ]
+
+  db.collection('post').aggregate(searchCondition).toArray((error, result) => {
+      console.log(result);
+      res.render('search.ejs', {posts : result}); // list.ejs를 복붙하여 search.ejs를 만들고 결과를 posts에 실어보냄
+  });
+});
 
 
 
