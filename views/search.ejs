@@ -58,6 +58,7 @@
       <li class="list-group-item">
         <a href="http://localhost:8080/detail/<%= posts[i]._id %>" style="text-decoration: none; color : black">
           <h4 class="ml-2 my-3">할일 : <%= posts[i].title %></h4>
+          <h6 class="ml-2 my-3">작성자 : <%= posts[i].author %></h6>
           <p class="ml-2 my-3">할일 마감 날짜 : <%= posts[i].date %> </p>
         </a>
         <button class="delete btn btn-danger" data-id="<%= posts[i]._id %>">삭제</button>

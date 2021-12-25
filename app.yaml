@@ -1,0 +1,12 @@
+# app.yaml : 구글 클라우드 배포시 설정 등을 내포한 파일
+# 기본 세팅값이며, 서버의 CPU나 메모리 용량 등 세부사항도 설정 가능
+
+runtime: nodejs
+env: flex
+
+manual_scaling:
+  instances: 1
+resources:
+  cpu: 1
+  memory_gb: 0.5
+  disk_size_gb: 10

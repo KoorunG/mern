@@ -32,6 +32,11 @@ app.use(passport.session());
 require('dotenv').config();
 
 
+// router
+app.use('/shop', require('./routes/shop'));
+app.use('/board', require('./routes/board'));
+
+
 // MongoDB
 MongoClient.connect(
   process.env.DB_URL,
@@ -59,6 +64,46 @@ MongoClient.connect(
   }
 );
 
+
+// #################### PASSPORT ###################### //
+passport.use(new LocalStrategy({
+  usernameField : 'id',
+  passwordField : 'pw',         // form의 name 속성을 기반으로 바인딩되는 부분!
+  session : true,               // session 정보 저장
+  passReqToCallback : false     // 아이디, 비밀번호 이외에 다른 정보 검증 시 true로 설정...
+}, (inputId, inputPw, done) => {          // 이 콜백함수에서 검증 로직을 수행한다
+                                // done(서버에러, 성공시 사용자 DB 데이터, 에러메세지) => 라이브러리 문법이므로 그렇구나하고 넘어가자
+  console.log(inputId, inputPw);
+  db.collection('login').findOne({id : inputId}, (error, result) => {
+    if(error){
+      return done(error);
+    }
+    if(!result){
+      return done(null, false, {message : '존재하지 않는 아이디입니다'});
+    }
+    if(inputPw == result.pw){
+      return done(null, result)
+    } else {
+      return done(null, false, {message : '비밀번호가 일치하지 않습니다'});
+    }
+  });
+}));  // 인증 방식을 선언
+
+
+// id를 이용하여 세션을 저장시키는 코드
+passport.serializeUser((user, done) => {  // 여기서 user에 위 코드의 두번째 파라미터인 result가 들어갈 것
+  done(null, user.id);                    // 세션 데이터를 만들고 세션의 id 정보를 쿠키로 보냄
+});
+
+// 이 세션 데이터를 가진 유저를 DB에서 조회
+passport.deserializeUser((id, done) => {
+  db.collection('login').findOne({id : id}, (error, result) => {  // 로그인한 유저의 아이디를 바탕으로 정보를 DB에서 조회
+    done(null, result);   // 마이페이지 접속시 result를 보내줌! (마이페이지의 요청에 user으로 정보를 보냄!)
+  });
+});
+
+// #################### PASSPORT ###################### //
+
 // GET
 
 app.get("/", (req, res) => {
@@ -75,75 +120,6 @@ app.get("/beauty", (req, res) => {
 
 app.get("/write", (req, res) => {
   res.render("write.ejs");
-});
-
-// POST
-
-// app.post('/add', (req, res) => {
-
-//     res.send('전송완료');
-//     console.log(req.body);
-// });
-
-
-// 어떤 사람이 /add 경로로 요청하면 데이터 2개 (날짜, 제목)을 보내주는데
-// 이 때 post라는 이름을 가진 collection에 두개의 데이터를 저장하기!
-
-app.post("/add", (req, res) => {
-  db.collection('count').findOne({name : "postNum"}, (err, result) => {
-
-    // 1. MongoDB에서 데이터 하나를 단건 조회 할 때 : findOne (name이 "postNum" 인 데이터를 하나 조회)
-      const totalPost = result.totalPost;
-    // 2. 위에서 찾은 데이터를 totalPost 변수에 저장
-
-    db.collection('post').insertOne({ _id: totalPost + 1, ...req.body }, (err, result) => {
-      if (err) {
-        console.log(err);
-      } else {
-        db.collection('count').updateOne({name : 'postNum'}, {$inc : {totalPost : 1}}, (err, result) => {
-          // 3. 값이 들어갈 때 마다 count 컬렉션의 totalPost 값을 1 증가시켜주기
-          if(err){
-            console.log(err);
-          }
-        });
-      }
-    });
-  });
-  res.redirect('/list');
-});
-
-
-// /list로 접속하면 데이터를 보여주기
-// 실제 DB에 저장된 데이터들로 꾸며진 HTML을 보여줌
-
-app.get('/list', (req, res) => {
-
-    // 'post'라는 컬렉션 안에 저장된 모든 데이터 꺼내기
-    db.collection('post').find().toArray((err, result) => {
-        if(err){
-            console.log(err);
-        }
-        console.log(result);
-
-    // 결과를 posts로 저장 후 list.ejs 랜더링!
-    res.render('list.ejs', {posts : result});
-    });
-});
-
-app.delete('/delete', (req, res) => {
-  
-  req.body._id = parseInt(req.body._id); // String으로 넘어온 _id를 다시 정수로 변환
-  console.log(req.body);  // 데이터 출력 확인
-
-  db.collection('post').deleteOne(req.body, (err, result) => {
-    if(err){
-      console.log(err);
-      res.status(400).send({message : '실패했습니다..'});
-    } else {
-      console.log('삭제 완료');                                 // 삭제완료 여부를 콘솔창에 찍기
-      res.status(200).send({message : '성공했습니다!'});        // 200 응답메세지를 보내고 메세지 전달
-    }
-  });
 });
 
 app.get('/detail/:id', (req, res) => {
@@ -214,43 +190,115 @@ app.get('/search', (req, res) => {
   });
 });
 
+app.post('/register', (req, res) => {
+  db.collection('login').insertOne(req.body, (error, result) => {
+    res.redirect('/');
+  });
+});
 
 
-// #################### PASSPORT ###################### //
-passport.use(new LocalStrategy({
-  usernameField : 'id',
-  passwordField : 'pw',         // form의 name 속성을 기반으로 바인딩되는 부분!
-  session : true,               // session 정보 저장
-  passReqToCallback : false     // 아이디, 비밀번호 이외에 다른 정보 검증 시 true로 설정...
-}, (inputId, inputPw, done) => {          // 이 콜백함수에서 검증 로직을 수행한다
-                                // done(서버에러, 성공시 사용자 DB 데이터, 에러메세지) => 라이브러리 문법이므로 그렇구나하고 넘어가자
-  console.log(inputId, inputPw);
-  db.collection('login').findOne({id : inputId}, (error, result) => {
-    if(error){
-      return done(error);
-    }
-    if(!result){
-      return done(null, false, {message : '존재하지 않는 아이디입니다'});
-    }
-    if(inputPw == result.pw){
-      return done(null, result)
+
+
+// /list로 접속하면 데이터를 보여주기
+// 실제 DB에 저장된 데이터들로 꾸며진 HTML을 보여줌
+
+app.get('/list', (req, res) => {
+
+  // 'post'라는 컬렉션 안에 저장된 모든 데이터 꺼내기
+  db.collection('post').find().toArray((err, result) => {
+      if(err){
+          console.log(err);
+      }
+      console.log(result);
+
+  // 결과를 posts로 저장 후 list.ejs 랜더링!
+  res.render('list.ejs', {posts : result, user : req.user});
+  });
+});
+
+
+
+// 어떤 사람이 /add 경로로 요청하면 데이터 2개 (날짜, 제목)을 보내주는데
+// 이 때 post라는 이름을 가진 collection에 두개의 데이터를 저장하기!
+
+app.post("/add", (req, res) => {
+
+  db.collection('count').findOne({name : "postNum"}, (err, result) => {
+
+    // 1. MongoDB에서 데이터 하나를 단건 조회 할 때 : findOne (name이 "postNum" 인 데이터를 하나 조회)
+      const totalPost = result.totalPost;
+    // 2. 위에서 찾은 데이터를 totalPost 변수에 저장
+
+    db.collection('post').insertOne({ _id: totalPost + 1, author_id : req.user._id , author : req.user.id, ...req.body }, (err, result) => {
+      if (err) {
+        console.log(err);
+      } else {
+        db.collection('count').updateOne({name : 'postNum'}, {$inc : {totalPost : 1}}, (err, result) => {
+          // 3. 값이 들어갈 때 마다 count 컬렉션의 totalPost 값을 1 증가시켜주기
+          if(err){
+            console.log(err);
+          }
+        });
+      }
+    });
+  });
+  res.redirect('/list');
+});
+
+
+app.delete('/delete', (req, res) => {
+  
+  req.body._id = parseInt(req.body._id); // String으로 넘어온 _id를 다시 정수로 변환
+  console.log(req.body);  // 데이터 출력 확인
+
+  const deleteData = {_id : req.body._id, author_id : req.user._id};
+
+  db.collection('post').deleteOne(deleteData, (err, result) => {
+    if(err){
+      console.log(err);
+      res.status(400).send({message : '실패했습니다..'});
     } else {
-      return done(null, false, {message : '비밀번호가 일치하지 않습니다'});
+      console.log('삭제 완료');                                 // 삭제완료 여부를 콘솔창에 찍기
+      res.status(200).send({message : '성공했습니다!'});        // 200 응답메세지를 보내고 메세지 전달
     }
   });
-}));  // 인증 방식을 선언
-
-
-// id를 이용하여 세션을 저장시키는 코드
-passport.serializeUser((user, done) => {  // 여기서 user에 위 코드의 두번째 파라미터인 result가 들어갈 것
-  done(null, user.id);                    // 세션 데이터를 만들고 세션의 id 정보를 쿠키로 보냄
-});
-
-// 이 세션 데이터를 가진 유저를 DB에서 조회
-passport.deserializeUser((id, done) => {
-  db.collection('login').findOne({id : id}, (error, result) => {  // 로그인한 유저의 아이디를 바탕으로 정보를 DB에서 조회
-    done(null, result);   // 마이페이지 접속시 result를 보내줌! (마이페이지의 요청에 user으로 정보를 보냄!)
-  });
 });
 
 
+// ########### multer ########### //
+const multer = require('multer');
+const storage = multer.diskStorage({  // 메모리에 저장하고 싶으면 memoryStorage
+  destination : function(req, file, cb){
+    cb(null, './public/images')
+  },
+  filename : function(req, file, cb){   // 파일 이름을 설정하는 부분
+    cb(null, file.originalname)
+  },
+  filefilter : function(req, file, cb){ // 파일에 필터링을 걸고 싶을 때
+    const ext = path.extname(file.originalname);
+    if(ext !== '.png' && ext !== '.jpg' && ext !== '.jpeg') {
+      return cb(new Error('이미지 파일만 업로드하시오!'))
+    }
+    cb(null, true);
+  },
+  limits : {  // 파일의 사이즈 제한을 걸고 싶을 때
+    fileSize : 1024 * 1024
+  }
+});
+
+const upload = multer({storage : storage});
+// ########### multer ########### //
+
+
+app.get('/upload', (req, res) => {
+  res.render('upload.ejs');
+});
+
+
+app.post('/upload', upload.single('profile'), (req, res) => {
+  res.send('이미지 업로드 완료!');
+});
+
+app.get('/image/:imageName', (req, res) => {
+  res.sendFile(__dirname + '/public/images/' + req.params.imageName);
+});
